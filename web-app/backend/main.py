@@ -1,13 +1,10 @@
 import os
 import asyncio
 import traceback
-from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 
 import aiofiles
 
@@ -18,6 +15,7 @@ from database import (
 )
 from transcription_parser import parse_transcription
 from audio_processor import process_lesson
+import storage
 
 STORAGE_DIR = os.environ.get("STORAGE_DIR", "storage")
 os.makedirs(STORAGE_DIR, exist_ok=True)
@@ -42,13 +40,20 @@ async def _process(lesson_id: int, audio_path: str, transcript_content: str,
         segments = parse_transcription(transcript_content)
         output_dir = os.path.join(STORAGE_DIR, str(lesson_id))
         big_chunks = await loop.run_in_executor(
-            None,
-            process_lesson,
-            audio_path,
-            segments,
-            output_dir,
-            big_chunk_target,
+            None, process_lesson, audio_path, segments, output_dir, big_chunk_target,
         )
+
+        # Upload chunks to R2 if configured, then clean up local temp files
+        if storage.is_configured():
+            for bc in big_chunks:
+                for fc in bc["fine_chunks"]:
+                    local = os.path.join(output_dir, fc["audio_file"])
+                    key = storage.r2_key(lesson_id, fc["audio_file"])
+                    await loop.run_in_executor(None, storage.upload, local, key)
+            # Remove source MP3 too — no longer needed locally
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+
         save_chunks(lesson_id, big_chunks)
     except Exception as e:
         mark_lesson_error(lesson_id, str(e))
@@ -107,7 +112,12 @@ def serve_audio(chunk_id: int):
     chunk = get_fine_chunk(chunk_id)
     if not chunk:
         raise HTTPException(404, "Chunk not found")
-    lesson = get_lesson(chunk["lesson_id"])
+
+    if storage.is_configured():
+        key = storage.r2_key(chunk["lesson_id"], chunk["audio_file"])
+        url = storage.presigned_url(key)
+        return RedirectResponse(url)
+
     audio_path = os.path.join(STORAGE_DIR, str(chunk["lesson_id"]), chunk["audio_file"])
     if not os.path.exists(audio_path):
         raise HTTPException(404, "Audio file not found")
@@ -133,17 +143,26 @@ def stats():
 
 @app.delete("/api/lessons/{lesson_id}")
 def delete_lesson(lesson_id: int):
-    from database import db
     import shutil
+    from database import db
     lesson = get_lesson(lesson_id)
     if not lesson:
         raise HTTPException(404, "Lesson not found")
     with db() as conn:
         conn.execute("DELETE FROM lessons WHERE id=?", (lesson_id,))
-    audio_path = os.path.join(STORAGE_DIR, f"lesson_{lesson_id}.mp3")
-    output_dir = os.path.join(STORAGE_DIR, str(lesson_id))
-    if os.path.exists(audio_path):
-        os.remove(audio_path)
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
+    if storage.is_configured():
+        # Delete all R2 objects for this lesson
+        chunks = get_fine_chunks(lesson_id)
+        client = storage._client()
+        bucket = os.environ["R2_BUCKET_NAME"]
+        for fc in chunks:
+            key = storage.r2_key(lesson_id, fc["audio_file"])
+            client.delete_object(Bucket=bucket, Key=key)
+    else:
+        audio_path = os.path.join(STORAGE_DIR, f"lesson_{lesson_id}.mp3")
+        output_dir = os.path.join(STORAGE_DIR, str(lesson_id))
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
     return {"ok": True}

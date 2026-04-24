@@ -4,14 +4,18 @@ services:
     runtime: docker
     dockerfilePath: ./web-app/backend/Dockerfile
     dockerContext: ./web-app/backend
-    plan: starter
+    plan: free
     healthCheckPath: /api/lessons
-    disk:
-      name: shadowing-data
-      mountPath: /data
-      sizeGB: 10
     envVars:
       - key: STORAGE_DIR
-        value: /data/storage
+        value: /tmp/storage
       - key: DB_PATH
-        value: /data/shadowing.db
+        value: /tmp/shadowing.db
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
