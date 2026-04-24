@@ -4,7 +4,7 @@ services:
     runtime: docker
     dockerfilePath: ./web-app/backend/Dockerfile
     dockerContext: ./web-app/backend
-    plan: free
+    plan: starter
     healthCheckPath: /api/lessons
     disk:
       name: shadowing-data
