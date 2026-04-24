@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: shadowing-backend
+    runtime: docker
+    dockerfilePath: ./web-app/backend/Dockerfile
+    dockerContext: ./web-app/backend
+    plan: free
+    healthCheckPath: /api/lessons
+    disk:
+      name: shadowing-data
+      mountPath: /data
+      sizeGB: 10
+    envVars:
+      - key: STORAGE_DIR
+        value: /data/storage
+      - key: DB_PATH
+        value: /data/shadowing.db

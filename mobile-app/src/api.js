@@ -1,7 +1,9 @@
-// Change this to your backend server IP/hostname when running on a real device or emulator.
-// For Android emulator, use "http://10.0.2.2:8000"
-// For a real device on the same WiFi, use "http://192.168.x.x:8000"
-export const API_BASE = "http://10.0.2.2:8000/api";
+// EAS builds inject EXPO_PUBLIC_API_BASE via eas.json env.
+// For local dev with Android emulator use "http://10.0.2.2:8000".
+// For local dev on a physical device use "http://<your-machine-ip>:8000".
+export const API_BASE = process.env.EXPO_PUBLIC_API_BASE
+  ? `${process.env.EXPO_PUBLIC_API_BASE}/api`
+  : "http://10.0.2.2:8000/api";
 
 export const fetchLessons = () =>
   fetch(`${API_BASE}/lessons`).then((r) => r.json());
