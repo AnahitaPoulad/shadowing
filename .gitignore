@@ -1,0 +1,10 @@
+node_modules/
+__pycache__/
+*.pyc
+*.db
+storage/
+.env
+dist/
+.expo/
+android/
+ios/

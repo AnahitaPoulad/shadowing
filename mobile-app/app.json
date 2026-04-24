@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Shadowing",
+    "slug": "shadowing",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0f0f13"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#6c63ff"
+      },
+      "package": "com.shadowing.app",
+      "permissions": [
+        "RECORD_AUDIO",
+        "INTERNET"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Shadowing to record your voice for practice."
+        }
+      ]
+    ]
+  }
+}
